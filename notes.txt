@@ -16,4 +16,27 @@ For instance, when a system-level routing failure hits a missing path, Starlette
 exception.status_code = 404
 exception.detail = "Not Found"
 
-#
+# Pydantic schemas act as a data bluepeint for incoming and outgoing data.
+# Validation : Making sure the data isn't missing or typed wrong.
+# BaseModel: This is a core class blueprint. By inheriting from it (class PostBase(BaseModel):), you turn a plain Python class into a Pydantic Model. This shifts it from an empty object to an engine that can automatically validate data types, handle incoming JSON strings, and export clean data structures.
+# Field: This is a configuration function. While standard type hints like : str only state that something must be text, Field() adds complex validation constraints—like minimum/maximum character limits or default values.
+# This is a configuration dictionary utility. It sets internal execution rules for how the schema behaves when translating objects.
+#  title: The name of the key/attribute.
+
+: str: The Python type hint. This says: "The incoming or outgoing value MUST be a text string."
+
+= Field(...): This tells Pydantic to apply extra validation constraints.
+
+min_length=1: Protects your system from empty strings (""). The user cannot just spam spaces or send blank data.
+
+max_length=100: Protects your layout styles. It limits the title to 100 characters so your frontend navigation blocks don't overflow or crash.
+# Pydantic schemas do not talk to the database. Pydantic schemas only handle data packaging at the boundary lines.
+# When Python executes line 96 (return new_post), FastAPI grabs that raw dictionary, intercepts its journey to the browser, and drops it into PostResponse. Pydantic strips away any extra unmapped data fields, verifies that id is an actual integer and date_posted is a valid string, and then packages it up into the final HTTP response payload.
+  
+Status codes:
+200 OK - Successful GET, PUT, or PATCH
+201 Created - Successful POST for users and posts
+204 No Content - Successful DELETE
+400 Bad Request - Duplicate username/email when creating user
+404 Not Found - Resource doesn't exist (user or post)
+422 Unprocessable Entity - Validation error (automatic from Pydantic)*
