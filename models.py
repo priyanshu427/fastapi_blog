@@ -27,7 +27,9 @@ class User(Base):
 # primary_key=True makes it autoincreement. unique=true means no duplicates allowed . nullable=false means it is a required field.
 # image_file: Mapped[str | None] here we just take file name not the url so dir changes doesnt break db.
 
-    posts: Mapped[list[Post]] = relationship(back_populates="author")
+    posts: Mapped[list[Post]] = relationship(
+        back_populates="author" ,
+         cascade="all, delete-orphan", ) # this deletes all the posts of the user when that specific user is deleted
 # its a one(author or user) to many(posts) link. here back_populates="author" all the user posts are linked to the author field
     
     @property

@@ -40,3 +40,11 @@ Status codes:
 400 Bad Request - Duplicate username/email when creating user
 404 Not Found - Resource doesn't exist (user or post)
 422 Unprocessable Entity - Validation error (automatic from Pydantic)*
+# async used for concurrent requests where input/output is involved and we have cpu time being wasted. 
+# sync is when we are waiting for a response from an external api or db , etc and no other task can be perfomed in the meanwhile.
+# async isnt always faster as a complex calculation taking cpu load and trying to process another request slows down the app.
+# a normal def function is sync , This means lines of code execute exactly one after another, and everything stops to wait for slow tasks. fastapi tucks it in a separate thread pool
+# A Thread Pool is a collection of entirely separate, independent workers (threads) that the operating system spawns in your RAM. Each thread operates in its own little world, completely cut off from the others.
+# a async def function runs directly in the main event loop when a task is not gonna block the cpu thread
+# The Main Event Loop is a single, continuous, infinite while loop running on one single thread of your CPU. Its entire job is to look at a list of tasks, execute them if they are ready, and skip them if they are waiting on something slow (like a database read).
+# cannot call sync methods with an async engine
