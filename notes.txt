@@ -1,6 +1,23 @@
 # templates are used to pass data and write html files.
 # jinga2 is a tempplate that fastapi and flask use.
 # convention in fastapi projects for a directory to be called templates.
+# uv run fastapi dev main.py . dev auto restartes the server when we make changes to code . fastapi run is used in production for performance.
+# we created a home route to root url. 
+# fastapi api support both sync and async.
+# uv is like pip but handles installing Python, managing libraries, and creating environments.
+# fastapi converts the dictionary passed into json automatically
+# an api endpoint is created returning json in browser
+# a swagger ui is generated to show automatic documnetation on http://127.0.0.1:8000/docs. 
+# http://127.0.0.1:8000/redoc for more documentation. 
+# we add a response class to the decorator and return h1.
+# for displaying the same page on two different routes we just stack the decorators
+# we dont want to show html routes in documentation as they are meant for users . to make docs clean we use include_in_schema=False in the decorator.
+# by default fastapi names the routes same as function name and can be changed using name=. when we click homw in the first route it goes to the root of the website.
+# we have two dictionary for jinga2 to fetch from posts and title.
+    # This calls the Jinja2 engine. It says, "Take an HTML file, fill in the blanks with my Python data, and send the result as a response."
+    # request: This is a mandatory requirement for FastAPI templates. It contains all the "behind the scenes" info about the user's connection (their IP, browser type, cookies, etc.). Jinja2 needs this to handle the web communication properly.
+    # return {'message': 'Hello World!'}
+    # return  f"<h1>{posts[0]['title']}</h1>"
 # fastapi is built on starlette so we need httpexception of starlette to catch those page not found error. the fastapi errors are caught with the httpexception of fastapi.
 #  page error when we change the url to something like from /posts to /abc  starlette exception catches that instead of fastapi.
 # def general_http_exception_handler(request: Request, exception: StarletteHTTPException):
@@ -32,7 +49,24 @@ min_length=1: Protects your system from empty strings (""). The user cannot just
 max_length=100: Protects your layout styles. It limits the title to 100 characters so your frontend navigation blocks don't overflow or crash.
 # Pydantic schemas do not talk to the database. Pydantic schemas only handle data packaging at the boundary lines.
 # When Python executes line 96 (return new_post), FastAPI grabs that raw dictionary, intercepts its journey to the browser, and drops it into PostResponse. Pydantic strips away any extra unmapped data fields, verifies that id is an actual integer and date_posted is a valid string, and then packages it up into the final HTTP response payload.
-  
+
+# posts: list[dict] = [
+#     {
+#         "id": 1,
+#         "author": "Corey Schafer",
+#         "title": "FastAPI is Awesome",
+#         "content": "This framework is really easy to use and super fast.",
+#         "date_posted": "April 20, 2025",
+#     },
+#     {
+#         "id": 2,
+#         "author": "Jane Doe",
+#         "title": "Python is Great for Web Development",
+#         "content": "Python is a great language for web development, and FastAPI makes it even better.",
+#         "date_posted": "April 21, 2025",
+#     },
+# ] # not needed as we have added a db.
+
 Status codes:
 200 OK - Successful GET, PUT, or PATCH
 201 Created - Successful POST for users and posts
@@ -40,6 +74,7 @@ Status codes:
 400 Bad Request - Duplicate username/email when creating user
 404 Not Found - Resource doesn't exist (user or post)
 422 Unprocessable Entity - Validation error (automatic from Pydantic)*
+
 # async used for concurrent requests where input/output is involved and we have cpu time being wasted. 
 # sync is when we are waiting for a response from an external api or db , etc and no other task can be perfomed in the meanwhile.
 # async isnt always faster as a complex calculation taking cpu load and trying to process another request slows down the app.
@@ -48,3 +83,8 @@ Status codes:
 # a async def function runs directly in the main event loop when a task is not gonna block the cpu thread
 # The Main Event Loop is a single, continuous, infinite while loop running on one single thread of your CPU. Its entire job is to look at a list of tasks, execute them if they are ready, and skip them if they are waiting on something slow (like a database read).
 # cannot call sync methods with an async engine
+# in sync lazy loading is used where if we need a object that is in a realtionship sqlachemy will run a hidden query for it which is sync.
+# in async lazy loading will cause an error as it will try to run a traditional blocking sync query in the main event loop that will crash the app and error.
+# for called objects we will use eager loading. here we give a unified db query that can fetch the objects at the same time
+# in async even though the main event loop is a single high performance cpu thread it hands over the tasks like a sqllite query to the linux kernel which gives it the sqllite engine to execute it . in the meantime the cpu thread executes other requests.
+# when sqlachemy stiches a object using two different tables using selectinload it checks the user id in the post table which is 1 and then locates the user_id in the user table. now it uses relationship to create a temporary instance in memory of post.author that can located by a pointer and contains the post and its author.
