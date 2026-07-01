@@ -88,3 +88,6 @@ Status codes:
 # for called objects we will use eager loading. here we give a unified db query that can fetch the objects at the same time
 # in async even though the main event loop is a single high performance cpu thread it hands over the tasks like a sqllite query to the linux kernel which gives it the sqllite engine to execute it . in the meantime the cpu thread executes other requests.
 # when sqlachemy stiches a object using two different tables using selectinload it checks the user id in the post table which is 1 and then locates the user_id in the user table. now it uses relationship to create a temporary instance in memory of post.author that can located by a pointer and contains the post and its author.
+# request is a sync library and not used in async routes.
+# all files like schemas,database and models files are imported as modules in main.py. In a folder each folder is a package which has files(which python automatically makes them modules that can be imported).
+# we add only imports that we only need in each file like users,posts,etc.
