@@ -55,7 +55,9 @@ app.include_router(posts.router, prefix="/api/posts", tags=["posts"])  # users.p
 async def home(request: Request, db: Annotated[AsyncSession, Depends(get_db)]):  # @app is used to define routes. @app tells Python this function belongs to your app.
     
     result = await db.execute(     # await freezes home function till the sqllite engine fetches the posts in the meanwhile takes other requests in the main event loop. when the query is done it pauses any other req and proceeds with the code in the function.
-        select(models.Post).options(selectinload(models.Post.author)))   # querying db for all posts for all users and executes a second query to fetch the user detail of the posts(author). sqlalchemy stiches the user data  to the post.author 
+        select(models.Post)
+        .options(selectinload(models.Post.author))   # querying db for all posts for all users and executes a second query to fetch the user detail of the posts(author). sqlalchemy stiches the user data  to the post.author 
+        .order_by(models.Post.date_posted.desc()))
     posts = result.scalars().all()
     
     return templates.TemplateResponse(
@@ -107,7 +109,8 @@ async def user_posts_page(
     result = await db.execute(
         select(models.Post)
         .options(selectinload(models.Post.author))   # using the relationship to preload the sql alchemy object post,author
-        .where(models.Post.user_id == user_id),
+        .where(models.Post.user_id == user_id)
+        .order_by(models.Post.date_posted.desc()),
     )
     posts = result.scalars().all()
     return templates.TemplateResponse(

@@ -17,7 +17,9 @@ router = APIRouter()
 @router.get("", response_model=list[PostResponse])   # .get() is an HTTP Method Router. it is used for reading data.
 async def get_posts(db: Annotated[AsyncSession, Depends(get_db)]):
     result = await db.execute(
-        select(models.Post).options(selectinload(models.Post.author)),
+        select(models.Post)
+        .options(selectinload(models.Post.author))
+        .order_by(models.Post.date_posted.desc()),   # tells sql alchemy to arrange posts by the dateposted field that is newest to first.
     )
     posts = result.scalars().all()
     return posts        # returns posts ,(previously) another dummy data in json from this route. now sends data to the response model
