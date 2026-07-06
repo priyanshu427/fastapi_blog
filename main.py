@@ -185,3 +185,5 @@ async def validation_exception_handler(request: Request, exception: RequestValid
         },
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
     )
+
+
