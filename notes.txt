@@ -95,3 +95,9 @@ Status codes:
 # how argon2 hashing works . when saving a password argon adds a random string called salt to the password and then using the argon blender to hash everything. this hashed password has argonid ,speed and that unique salt. 
 # when the user reenters password for verification it picks up the salt from the exiting hash in db and takes the current entered password runs in blender and verifies it if it matches.
 # so each time for the same password argon can generate a unique hash using a salt.
+# a jwt is split in three sections using (.) called header,payload and signature.
+# header tells fastapi what type and algorithm is it. here it is jwt and hs256.
+# payload includes user_logged in data like user_id,username.
+# both payload and header are encoded in base64 to get a single string. note never sensitive info like password in payload.
+# signature is generated using header,payload and secret key and hashed together 
+# authentication asks for who are u 
