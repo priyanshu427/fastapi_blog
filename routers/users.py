@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import models
-from auth import (create_access_token, hash_password, oauth2_scheme,
-                  verify_access_token, verify_password)
+from auth import (CurrentUser, create_access_token, hash_password,
+                  verify_password)
 from config import settings
 from database import get_db
 from schemas import (PostResponse, Token, UserCreate, UserPrivate, UserPublic,
@@ -93,39 +93,41 @@ async def login_for_access_token(
 # route for getting the current logged in user.
 @router.get("/me", response_model=UserPrivate) # the frontend sends the jwt token straight to this route /api/users/me. the server decodes token and sends profile data of that logged in user using that jwt
 async def get_current_user(  # we place this route above all variable routes cuz if me goes in like {user_id} it would throw a validation error. if url is /me this route is taken
-    token: Annotated[str, Depends(oauth2_scheme)], # oauth2... takes the token strips word bearer from the request header and drops it in token
-    db: Annotated[AsyncSession, Depends(get_db)],
-):
-    """Get the currently authenticated user."""
-    user_id = verify_access_token(token) # check for a valid token 
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    # token: Annotated[str, Depends(oauth2_scheme)], # oauth2... takes the token strips word bearer from the request header and drops it in token
+    # db: Annotated[AsyncSession, Depends(get_db)], # dont need all this dependencies code till below we already have current user
+current_user:CurrentUser):
+    return current_user
+    
+    # """Get the currently authenticated user."""
+    # user_id = verify_access_token(token) # check for a valid token 
+    # if user_id is None:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_401_UNAUTHORIZED,
+    #         detail="Invalid or expired token",
+    #         headers={"WWW-Authenticate": "Bearer"},
+    #     )
 
-    # Validate user_id is a valid integer (defense against malformed JWT)
-    try:  # when we integrate logging using google account or third party accounts the user_id/sub they give can be a abc which if parsed by sqllite will throw internal server error as user_id/sub can only be integer
-        user_id_int = int(user_id) # python checks here if the user_id it gets can be converted to math integer 1 or not . if yes it saves into useridint. for an input like abc it cannot convert to integer and except block
-    except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    # # Validate user_id is a valid integer (defense against malformed JWT)
+    # try:  # when we integrate logging using google account or third party accounts the user_id/sub they give can be a abc which if parsed by sqllite will throw internal server error as user_id/sub can only be integer
+    #     user_id_int = int(user_id) # python checks here if the user_id it gets can be converted to math integer 1 or not . if yes it saves into useridint. for an input like abc it cannot convert to integer and except block
+    # except (TypeError, ValueError):
+    #     raise HTTPException(
+    #         status_code=status.HTTP_401_UNAUTHORIZED,
+    #         detail="Invalid or expired token",
+    #         headers={"WWW-Authenticate": "Bearer"},
+    #     )
 
-    result = await db.execute( # checks if the user was maybe deleted but the token exists then it check if that user has a sql alchemy object with them
-        select(models.User).where(models.User.id == user_id_int), # we use useridint as the userid we get is a string not a integer
-    )
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user
+    # result = await db.execute( # checks if the user was maybe deleted but the token exists then it check if that user has a sql alchemy object with them
+    #     select(models.User).where(models.User.id == user_id_int), # we use useridint as the userid we get is a string not a integer
+    # )
+    # user = result.scalars().first()
+    # if not user:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_401_UNAUTHORIZED,
+    #         detail="User not found",
+    #         headers={"WWW-Authenticate": "Bearer"},
+    #     )
+    # return user
 
 # route for fetching a specific user. 
 @router.get("/{user_id}", response_model=UserPublic)
@@ -162,9 +164,16 @@ async def get_user_posts(user_id: int, db: Annotated[AsyncSession, Depends(get_d
 @router.patch("/{user_id}", response_model=UserPrivate)
 async def update_user(
     user_id: int,
-    user_update: UserUpdate,                                   # takes the validation from userupdate
+    user_update: UserUpdate,            # takes the validation from userupdate
+    current_user:CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
+    if user_id != current_user.id:  # ownership check
+        raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="Not authorized to update this user",
+            )
+
     result = await db.execute(select(models.User).where(models.User.id == user_id)) # checks if the user exists or not
     user = result.scalars().first()
     if not user:
@@ -208,7 +217,13 @@ async def update_user(
 
 # route for deleting a user and all their posts
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
+async def delete_user(user_id: int, current_user:CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]
+                      ):
+    if user_id != current_user.id:  # ownership check
+        raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="Not authorized to delete this user",
+            )
     result = await db.execute(select(models.User).where(models.User.id == user_id))
     user = result.scalars().first()
     if not user:

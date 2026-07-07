@@ -44,4 +44,18 @@ export async function getCurrentUser() {
 
 export function logout() {
     localStorage.removeItem("access_token");
+    currentUser = null;
+    window.location.href = "/";
+}
+
+export function getToken() {
+    return localStorage.getItem("access_token");
+}
+
+export function setToken(token) {
+    localStorage.setItem("access_token", token);
+}
+
+export function clearUserCache() {
+    currentUser = null;
 }

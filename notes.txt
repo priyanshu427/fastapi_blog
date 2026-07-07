@@ -101,3 +101,4 @@ Status codes:
 # both payload and header are encoded in base64 to get a single string. note never sensitive info like password in payload.
 # signature is generated using header,payload and secret key and hashed together 
 # authentication asks for who are u 
+# authorization asks what all can u do 

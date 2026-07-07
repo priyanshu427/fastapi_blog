@@ -1,5 +1,7 @@
-from pydantic import BaseModel, ConfigDict, Field, EmailStr
 from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
 
 class UserBase(BaseModel):
     username: str = Field(min_length=1, max_length=50)
@@ -39,8 +41,7 @@ class PostBase(BaseModel):
 # master blueprint : Every single post in our entire system MUST have a title, content, and an author. No exceptions, and they all must be text strings.
 
 class PostCreate(PostBase):  # takes the incoming json data from the browser and runs it through the constraints. if validaton is passed , data is sent into the function.
-    user_id: int # temporary
-
+    pass     # user_id is removed as we are using dependency injection to get the current logged in user sqlalchemy object
 
 class PostUpdate(BaseModel): # takes the incominng json for patch and runs that given field data with this schema
     title: str | None = Field(default=None,min_length=1, max_length=100)

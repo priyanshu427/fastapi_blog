@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import models
+from auth import CurrentUser
 from database import get_db
 from schemas import PostCreate, PostResponse, PostUpdate
 
@@ -31,7 +32,10 @@ async def get_posts(db: Annotated[AsyncSession, Depends(get_db)]):
     response_model=PostResponse,           # Response model specifies that when we return new_post, it sends the json data to the PostResponse class for validation.
     status_code=status.HTTP_201_CREATED,
 ) 
-async def create_post(post: PostCreate, db: Annotated[AsyncSession, Depends(get_db)]): # Take the incoming JSON data from the internet, run it through the PostCreate bouncer, and convert it into a Python object named post
+async def create_post(post: PostCreate, 
+                      current_user:CurrentUser, # gets the current logged in user . here currentuser has the live sqlalchemy object of the user
+                      db: Annotated[AsyncSession, Depends(get_db)]): # Take the incoming JSON data from the internet, run it through the PostCreate bouncer, and convert it into a Python object named post
+    
     # new_id = max(p["id"] for p in posts) + 1 if posts else 1     # manual way of assigning ids
      
     # new_post = {"id": new_id, "author": post.author, "title": post.title, "content": post.content, "date_posted": "April 23, 2025",} 
@@ -40,20 +44,21 @@ async def create_post(post: PostCreate, db: Annotated[AsyncSession, Depends(get_
     # Because it’s a Python object instance, we use dot-notation (post.author) to read its attributes, rather than dictionary brackets (post["author"]). Pydantic read the original user JSON key, validated it, and attached it to that object property for you to grab.
     # posts.append(new_post) #It's added to our dictionary list using append temporarily as there is no database yet.
     # return new_post
-    result = await db.execute(
-        select(models.User).where(models.User.id == post.user_id),
-    )
-    user = result.scalars().first()     # user :(The SQLAlchemy query result): Contains the full, live database record for that user.
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+
+    # result = await db.execute(  # block for user verification not needed as our current_user dependency checks that for us
+    #     select(models.User).where(models.User.id == post.user_id),
+    # )
+    # user = result.scalars().first()     # user :(The SQLAlchemy query result): Contains the full, live database record for that user.
+    # if not user:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_404_NOT_FOUND,
+    #         detail="User not found",
+    #     )
 
     new_post = models.Post(
         title=post.title,
         content=post.content,
-        user_id=post.user_id,
+        user_id=current_user.id,
     )
     db.add(new_post)
     await db.commit()
@@ -82,6 +87,7 @@ async def get_post(post_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
 async def update_post_full(
     post_id: int,
     post_data: PostCreate, # we need the user to fill all fields for the put request and schema check . 
+    current_user:CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(select(models.Post).where(models.Post.id == post_id))
@@ -91,20 +97,26 @@ async def update_post_full(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Post not found",
         )
-    if post_data.user_id != post.user_id: # right now the app doesnt have a login so user_id can be different for now.
-        result = await db.execute(              # we check the user_id of the post incoming to the existing post in db . if user_id matches then all good if it doesnt then we assign that user the post after checking that the user actually exists.
-            select(models.User).where(models.User.id == post_data.user_id),
-        )
-        user = result.scalars().first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
+    # if post_data.user_id != post.user_id: # right now the app doesnt have a login so user_id can be different for now.
+    #     result = await db.execute(              # we check the user_id of the post incoming to the existing post in db . if user_id matches then all good if it doesnt then we assign that user the post after checking that the user actually exists.
+    #         select(models.User).where(models.User.id == post_data.user_id),
+    #     )
+    #     user = result.scalars().first()
+    #     if not user:
+    #         raise HTTPException(
+    #             status_code=status.HTTP_404_NOT_FOUND,
+    #             detail="User not found",
+    #         ) # user verification block not needed
+
+    if post.user_id != current_user.id:  # ownershipcheck if this post belongs to the user or not
+        raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,  # authenticated but not permission for this action
+                detail="Not authorized to update this post",
             )
 
     post.title = post_data.title # all fields are replaced in put regarldless same or different.
     post.content = post_data.content
-    post.user_id = post_data.user_id
+    # post.user_id = post_data.user_id # not required as we get current user_id from dependency
 # in the case the post was from a different user_id and not from the owner the post is updated and reassigned to the user while the previous user loses that post.
 
     await db.commit()
@@ -117,6 +129,7 @@ async def update_post_full(
 async def update_post_partial(
     post_id: int,
     post_data: PostUpdate, # we need the user to fill all fields for the put request and schema check . 
+    current_user:CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(select(models.Post).where(models.Post.id == post_id))
@@ -126,6 +139,12 @@ async def update_post_partial(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Post not found",
         )
+    
+    if post.user_id != current_user.id:
+        raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="Not authorized to update this post",
+            )
 
     update_data = post_data.model_dump(exclude_unset=True)   # model_dump a pydantic tool that converts incoming json to a dictionary. exclude_unset=True means that any fields left empty by user are not taken in dict.
     for field, value in update_data.items():
@@ -138,7 +157,7 @@ async def update_post_partial(
 
 # route for deleting a post
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT) # 204 means success but no response body
-async def delete_post(post_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
+async def delete_post(post_id: int, current_user:CurrentUser, db: Annotated[AsyncSession, Depends(get_db)]):
     result = await db.execute(select(models.Post).where(models.Post.id == post_id))
     post = result.scalars().first()
     if not post:
@@ -146,6 +165,12 @@ async def delete_post(post_id: int, db: Annotated[AsyncSession, Depends(get_db)]
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Post not found",
         )
+    
+    if post.user_id != current_user.id:
+        raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="Not authorized to delete this post",
+            )
 
     await db.delete(post)
     await db.commit()

@@ -1,10 +1,16 @@
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
 import jwt
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from pwdlib import PasswordHash
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+import models
 from config import settings
+from database import get_db
 
 password_hash = PasswordHash.recommended() # creates a password hasher using argon2 . recommended just selets the best currenty security standards like argon2id for hashing 
 
@@ -48,3 +54,38 @@ def verify_access_token(token: str) -> str | None: # takes the base64 string as 
     else:
         return payload.get("sub")  # if no error in the try block it takes the decoded payload and gets the user_id and returns it to the route to give permission to edit,delete blog,etc
     
+# get_current_user
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: Annotated[AsyncSession, Depends(get_db)],  # gets the token and sets up a db session for query
+) -> models.User:
+    user_id = verify_access_token(token)  # token verification
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try: 
+        user_id_int = int(user_id)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    result = await db.execute(
+        select(models.User).where(models.User.id == user_id_int),  # gets the user object
+    )
+    user = result.scalars().first()
+    if not user:  # ghost user check
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+
+CurrentUser = Annotated[models.User, Depends(get_current_user)] # instead manually writing dependency injection in each route we can use an alias of current user.
