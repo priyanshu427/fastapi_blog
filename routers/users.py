@@ -2,7 +2,8 @@
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import (APIRouter, Depends, HTTPException, Query, UploadFile,
+                     status)
 from fastapi.security import OAuth2PasswordRequestForm
 from PIL import UnidentifiedImageError
 from sqlalchemy import func, select
@@ -16,8 +17,8 @@ from auth import (CurrentUser, create_access_token, hash_password,
 from config import settings
 from database import get_db
 from image_utils import delete_profile_image, process_profile_image
-from schemas import (PostResponse, Token, UserCreate, UserPrivate, UserPublic,
-                     UserUpdate)
+from schemas import (PaginatedPostsResponse, PostResponse, Token, UserCreate,
+                     UserPrivate, UserPublic, UserUpdate)
 
 router = APIRouter()   # creates a sub-apps which we can include in the main.py.
 # by dividing main.py in multiple files using apirouter according to features it makes cleaner and maintable.
@@ -144,9 +145,14 @@ async def get_user(user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
     # return {"error": "post not found"} # this line is bad as our dev server shows 200(success) instead of a 404(error) as the resource wasnt found at that id.
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-# route : we fetch all the posts of a specific user
-@router.get("/{user_id}/posts", response_model=list[PostResponse]) # used list as fetching from db the data is not organized and sql alchemy have meta data.
-async def get_user_posts(user_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
+# route : we fetch all the posts of a specific user(paginated)
+@router.get("/{user_id}/posts", response_model=PaginatedPostsResponse) # used list as fetching from db the data is not organized and sql alchemy have meta data. now used PaginatedPostsResponse schema
+async def get_user_posts(
+    user_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = settings.posts_per_page,
+):
     result = await db.execute(select(models.User).where(models.User.id == user_id)) # we check if the user exists or not before querying for all posts
     user = result.scalars().first()
     if not user:
@@ -154,14 +160,33 @@ async def get_user_posts(user_id: int, db: Annotated[AsyncSession, Depends(get_d
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
+
+    count_result = await db.execute(
+        select(func.count())
+        .select_from(models.Post)
+        .where(models.Post.user_id == user_id), # counting posts for the speicifc user
+    )
+    total = count_result.scalar() or 0
+
     result = await db.execute(
         select(models.Post)
         .options(selectinload(models.Post.author))
         .where(models.Post.user_id == user_id)
-        .order_by(models.Post.date_posted.desc()),
+        .order_by(models.Post.date_posted.desc())
+        .offset(skip)
+        .limit(limit),
     )
     posts = result.scalars().all()
-    return posts
+
+    has_more = skip + len(posts) < total
+
+    return PaginatedPostsResponse(
+        posts=[PostResponse.model_validate(post) for post in posts],
+        total=total,
+        skip=skip,
+        limit=limit,
+        has_more=has_more,
+    )
 
 # route for updating users
 @router.patch("/{user_id}", response_model=UserPrivate)

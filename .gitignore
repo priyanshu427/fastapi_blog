@@ -13,3 +13,5 @@ wheels/
 
 # Ignore user-uploaded profile pictures
 media/
+# Ignore Corey's source seed images folder
+populate_images/

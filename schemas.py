@@ -55,4 +55,13 @@ class PostResponse(PostBase):
     date_posted: datetime
     author: UserPublic # we get nested json with all the things in userresponse/(userpublic now).
     # after the execution of the function and retrun new_post. FastAPI intercepts that returned variable and pushes it through the PostResponse schema filter. it ensures payload matches the criteria and adds id and date_posted and its sent to the browser.
+
+
+class PaginatedPostsResponse(BaseModel): # response model for paginated  
+    posts: list[PostResponse]  # post data
+    total: int      # total no. of posts in db
+    skip: int       # offset tells where to start reading posts in db from
+    limit: int      # no. of posts requested
+    has_more: bool  # tell if there are more posts after this batch. for frontend to show the load more button or not
+
     

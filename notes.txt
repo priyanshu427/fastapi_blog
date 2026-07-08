@@ -105,3 +105,11 @@ Status codes:
 
 # pillow libray install for image processing and resizing,etc.
 # when a file is sent from the browser to server its sent not in json but a content type called multi art form
+
+# pagination is used for controlling how much data we are sending over an api request. we dont want to send users all the posts when the quantity of posts become a lot 
+# Annotated is simply a general-purpose wrapper used to attach any extra behavior to a parameter.
+# the intial page load is gonna be server side rendered so that search engines can see content after that js fetches the next batches
+# there are libraries for pagination 
+
+
+

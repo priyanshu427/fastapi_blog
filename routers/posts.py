@@ -1,29 +1,51 @@
 ## Imports for Posts Router
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import models
 from auth import CurrentUser
+from config import settings
 from database import get_db
-from schemas import PostCreate, PostResponse, PostUpdate
+from schemas import (PaginatedPostsResponse, PostCreate, PostResponse,
+                     PostUpdate)
 
 router = APIRouter()
 
 
 # Route for querying all posts and fetching them
-@router.get("", response_model=list[PostResponse])   # .get() is an HTTP Method Router. it is used for reading data.
-async def get_posts(db: Annotated[AsyncSession, Depends(get_db)]):
+@router.get("", response_model=PaginatedPostsResponse)   # .get() is an HTTP Method Router. it is used for reading data.
+async def get_posts(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    skip: Annotated[int, Query(ge=0)] = 0,   # by default 0 . ge means greater or equal to 0 . used dependency injection to enforce rules. query is for for validating user input using some constraints
+    limit: Annotated[int, Query(ge=1, le=100)] = settings.posts_per_page, # a limit for the user to not pull less than 1 or more than 100 posts at a time . defaults to 10
+    ):
+
+    count_result = await db.execute(select(func.count()).select_from(models.Post)) # a count query to the db to calculate total no. of posts
+    total = count_result.scalar() or 0  # if no posts then 0
+
     result = await db.execute(
         select(models.Post)
         .options(selectinload(models.Post.author))
-        .order_by(models.Post.date_posted.desc()),   # tells sql alchemy to arrange posts by the dateposted field that is newest to first.
+        .order_by(models.Post.date_posted.desc())   # tells sql alchemy to arrange posts by the dateposted field that is newest to first.
+        .offset(skip)  # tell db to skip certain amount of rows to be skipped or the pages user has seen
+        .limit(limit)  # queries only the amount the posts requested 
     )
     posts = result.scalars().all()
-    return posts        # returns posts ,(previously) another dummy data in json from this route. now sends data to the response model
+
+    has_more = skip + len(posts) < total  # calculates if we have more posts left which results in true then show load more button 
+
+    # return posts        # returns posts ,(previously) another dummy data in json from this route. now sends data to the response model. this retuens just a raw list of SQLAlchemy database models. fastapi doing validation in the back
+    return PaginatedPostsResponse(
+        posts=[PostResponse.model_validate(post) for post in posts], # takes the sql alchemy objects and runs them through Pydantic's internal data-validation machine (model_validate), and wraps them up inside an organized payload package alongside metadata values (total, skip, limit, has_more)
+        total=total,  # response model is not a list anymore so need to map the data
+        skip=skip,
+        limit=limit,
+        has_more=has_more,
+    )
 
 
 # for creating posts by their user_id 

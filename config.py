@@ -14,6 +14,8 @@ class Settings(BaseSettings):    # inheriting from basesettings class gives us t
     access_token_expire_minutes: int = 30 # gives the login token a expiration time
 
     max_upload_size_bytes: int = 5 * 1024 * 1024 # restricts file uploads to 5mb and protects server from large file uploads
+
+    posts_per_page: int = 10
     
 
 settings = Settings()  # Loaded from .env file # object settings is made for convinience so that it can imported to any file and Pydantic opens, reads, validates, and processes .env file exactly ONCE at the moment the server boots up. next time it just picks the settings obj from ram to check anything like token expiration
