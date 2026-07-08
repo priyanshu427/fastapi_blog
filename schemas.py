@@ -27,7 +27,7 @@ class UserPrivate(UserPublic):   # response model for when the author wants to v
 class UserUpdate(BaseModel):
     username: str | None = Field(default=None, min_length=1, max_length=50)
     email: EmailStr | None = Field(default=None, max_length=120)
-    image_file: str | None = Field(default=None, min_length=1, max_length=200)    
+    # image_file: str | None = Field(default=None, min_length=1, max_length=200)   # removed as it can be a security vulnerability that someone could guess an existing filename. declared a dedicated file: UploadFile parameter in our function argument
 # schema used incoming json data from patch request of the user path
 
 class Token(BaseModel):  # for login responses

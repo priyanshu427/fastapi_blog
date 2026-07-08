@@ -12,6 +12,8 @@ class Settings(BaseSettings):    # inheriting from basesettings class gives us t
     secret_key: SecretStr   # prevents accidental display of secret key if settings or server logs get accidently printed 
     algorithm: str = "HS256" # specifes what algorithm will be used on the secret_key + input data of user and run it in a hs256 stands for HMAC using SHA-256 and generates a signature string . when server receives jwt this algo validates if its from that user.
     access_token_expire_minutes: int = 30 # gives the login token a expiration time
+
+    max_upload_size_bytes: int = 5 * 1024 * 1024 # restricts file uploads to 5mb and protects server from large file uploads
     
 
 settings = Settings()  # Loaded from .env file # object settings is made for convinience so that it can imported to any file and Pydantic opens, reads, validates, and processes .env file exactly ONCE at the moment the server boots up. next time it just picks the settings obj from ram to check anything like token expiration

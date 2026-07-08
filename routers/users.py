@@ -2,17 +2,20 @@
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.security import OAuth2PasswordRequestForm
+from PIL import UnidentifiedImageError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from starlette.concurrency import run_in_threadpool
 
 import models
 from auth import (CurrentUser, create_access_token, hash_password,
                   verify_password)
 from config import settings
 from database import get_db
+from image_utils import delete_profile_image, process_profile_image
 from schemas import (PostResponse, Token, UserCreate, UserPrivate, UserPublic,
                      UserUpdate)
 
@@ -207,8 +210,8 @@ async def update_user(
         user.username = user_update.username
     if user_update.email is not None:
         user.email = user_update.email.lower()
-    if user_update.image_file is not None:
-        user.image_file = user_update.image_file
+    # if user_update.image_file is not None: # not rewuired as image_file is removed from schema
+    #     user.image_file = user_update.image_file 
 
     await db.commit()
     await db.refresh(user)
@@ -231,7 +234,81 @@ async def delete_user(user_id: int, current_user:CurrentUser, db: Annotated[Asyn
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
+    
+    old_filename = user.image_file
 
     await db.delete(user)  # await is used here as the db will have to cascades delete the posts of the user in the relationship.
     await db.commit()
- 
+
+    if old_filename :      # deleting the profile image after commit incase commit fails
+     delete_profile_image(old_filename) 
+
+# route for updating a profile image file
+@router.patch("/{user_id}/picture", response_model=UserPrivate)
+async def upload_profile_picture(
+    user_id: int,
+    file: UploadFile, # UploadFile a special type in fastapi for handling file uploads. if the file uploads in ram are too much it offloads it to harddisk
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    if current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to update this user's picture",
+        )
+
+    content = await file.read() # reading the file content. await is used as reading the file from disk takes time
+
+    if len(content) > settings.max_upload_size_bytes:  # checking file size if the file is too long according to our setting > 5mb then we throw error
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File too large. Maximum size is {settings.max_upload_size_bytes // (1024 * 1024)}MB",
+        )
+
+    try:  # image processing is a cpubound work so we keep our function process_profile_image in the run_in_threadpool function which offloads it in a thread pool while keeping our endpoint async otherwise it would have blocked the main event loop
+        new_filename = await run_in_threadpool(process_profile_image, content) # await pauses the req of the current user till the image is processed in a differnt background thread . process_profile_image also saves the file in our hardrive
+    except UnidentifiedImageError as err:   # if file is not an image its caught here
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid image file. Please upload a valid image (JPEG, PNG, GIF, WebP).",
+        ) from err
+
+    old_filename = current_user.image_file  # default filename of the user in db
+
+    current_user.image_file = new_filename  # replacing the old filename with newfilename
+    await db.commit()
+    await db.refresh(current_user) # we save the new file first so that incase we failed db commit then atleast we still have users old profile pic
+
+    if old_filename: # after successful commit then we delete the old profile image file
+        delete_profile_image(old_filename)
+
+    return current_user
+
+#route for Deleting Profile Picture 
+@router.delete("/{user_id}/picture", response_model=UserPrivate)
+async def delete_user_picture(
+    user_id: int,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    if current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to delete this user's picture",
+        )
+
+    old_filename = current_user.image_file # fetches the image file of the current user
+
+    if old_filename is None:  # check for if a image exists for that user or not
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No profile picture to delete",
+        )
+
+    current_user.image_file = None # none here means default image path
+    await db.commit()
+    await db.refresh(current_user)
+
+    delete_profile_image(old_filename)  # once the filename is gone then we delete the actual file
+
+    return current_user
