@@ -1,24 +1,28 @@
 ## Imports for Users Router
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
-from fastapi import (APIRouter, Depends, HTTPException, Query, UploadFile,
-                     status)
+from fastapi import (APIRouter, BackgroundTasks, Depends, HTTPException, Query,
+                     UploadFile, status)
 from fastapi.security import OAuth2PasswordRequestForm
 from PIL import UnidentifiedImageError
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.concurrency import run_in_threadpool
 
 import models
-from auth import (CurrentUser, create_access_token, hash_password,
-                  verify_password)
+from auth import (CurrentUser, create_access_token, generate_reset_token,
+                  hash_password, hash_reset_token, verify_password)
 from config import settings
 from database import get_db
+from email_utils import send_password_reset_email
 from image_utils import delete_profile_image, process_profile_image
-from schemas import (PaginatedPostsResponse, PostResponse, Token, UserCreate,
-                     UserPrivate, UserPublic, UserUpdate)
+from schemas import (ChangePasswordRequest, ForgotPasswordRequest,
+                     PaginatedPostsResponse, PostResponse,
+                     ResetPasswordRequest, Token, UserCreate, UserPrivate,
+                     UserPublic, UserUpdate)
 
 router = APIRouter()   # creates a sub-apps which we can include in the main.py.
 # by dividing main.py in multiple files using apirouter according to features it makes cleaner and maintable.
@@ -132,6 +136,132 @@ current_user:CurrentUser):
     #         headers={"WWW-Authenticate": "Bearer"},
     #     )
     # return user
+
+
+# route for forgot password . user sends a request to the server 
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)  # 202 request accepted and will process it but doesnt confirm email
+async def forgot_password(
+    request_data: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,  # BackgroundTasks, the endpoint hands off the heavy lifting to an asynchronous execution worker thread otherwise the browser would just freeze for 1-3 sec for the user as email requires a network round trip
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(   # email check for user
+        select(models.User).where(
+            func.lower(models.User.email) == request_data.email.lower(),
+        ),  
+    )
+    user = result.scalars().first()
+
+    if user:  # for that user we delete any previous reset tokens incase they request again old tokens are invalid
+        await db.execute(
+            sql_delete(models.PasswordResetToken).where(
+                models.PasswordResetToken.user_id == user.id,
+            ),
+        )
+
+        token = generate_reset_token()       # generating token
+        token_hash = hash_reset_token(token) # hashing token
+        expires_at = datetime.now(UTC) + timedelta(  
+            minutes=settings.reset_token_expire_minutes
+        )
+
+        reset_token = models.PasswordResetToken(  # a reset token is created with all these parameters and a live, tracked SQLAlchemy ORM instance object
+            user_id=user.id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+        )
+        db.add(reset_token)
+        await db.commit()
+
+        background_tasks.add_task(     # using backgroundtask.addtask we are scheduling a email to be sent in background
+            send_password_reset_email, # task here is send_password_reset_email function
+            to_email=user.email,       # and the required parameters for that task
+            username=user.username,
+            token=token,               # sending unhashed token so url can be constructed
+        )
+
+    return {  # message always shown to the user as soon as the request is received . doesnt matter if backgroundtask is scheduled or any if statement
+        "message": "If an account exists with this email, you will receive password reset instructions."  # a generic message to not give hints to attacker like email not found or doesnt exist
+    }
+
+# route for reset password . when the user click the link and sends the new password
+@router.post("/reset-password", status_code=status.HTTP_200_OK)
+async def reset_password(
+    request_data: ResetPasswordRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    token_hash = hash_reset_token(request_data.token)  # hashing the subimtted token
+
+    result = await db.execute(  # comparing the hashed token to the hash in db
+        select(models.PasswordResetToken).where(
+            models.PasswordResetToken.token_hash == token_hash,
+        ),
+    )
+    reset_token = result.scalars().first()
+
+    if not reset_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",   # generic message
+        )
+
+    if reset_token.expires_at.replace(tzinfo=UTC) < datetime.now(UTC):  # sqllite stores datetimes but doesnt store timezone info it strips that out and cannot compare directly with datetime. replace adds the timezone
+        await db.delete(reset_token)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    result = await db.execute(  # checking if the user exists . the user might have deleted acc incase
+        select(models.User).where(models.User.id == reset_token.user_id),
+    )
+    user = result.scalars().first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    user.password_hash = hash_password(request_data.new_password)  # hashing the new password and updating it for that user
+
+    await db.execute(  # deleting all reset tokens for the user
+        sql_delete(models.PasswordResetToken).where(
+            models.PasswordResetToken.user_id == user.id,
+        ),
+    )
+
+    await db.commit()
+    return {
+        "message": "Password reset successfully. You can now log in with your new password."
+    }
+   
+
+#route for change password for logged in users
+@router.patch("/me/password", status_code=status.HTTP_200_OK)  # /me makes that no authorization checks are needed. its just a url name but is best practice and creates a clean logical group of endpoints
+async def change_password(
+    password_data: ChangePasswordRequest,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    if not verify_password(password_data.current_password, current_user.password_hash):  # verifying current password
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    current_user.password_hash = hash_password(password_data.new_password) # hashing the new password and storing it
+
+    await db.execute(
+        sql_delete(models.PasswordResetToken).where(
+            models.PasswordResetToken.user_id == current_user.id,
+        ),
+    )
+
+    await db.commit()
+    return {"message": "Password changed successfully"}
+   
 
 # route for fetching a specific user. 
 @router.get("/{user_id}", response_model=UserPublic)

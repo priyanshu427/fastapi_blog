@@ -65,3 +65,16 @@ class PaginatedPostsResponse(BaseModel): # response model for paginated
     has_more: bool  # tell if there are more posts after this batch. for frontend to show the load more button or not
 
     
+# Password Reset Schemas
+class ForgotPasswordRequest(BaseModel): # for forgot password request
+    email: EmailStr = Field(max_length=120)
+
+
+class ResetPasswordRequest(BaseModel):  # when user submits the new password and sends it back
+    token: str
+    new_password: str = Field(min_length=8)
+
+
+class ChangePasswordRequest(BaseModel):  # for logged in user who want to change passwords
+    current_password: str
+    new_password: str = Field(min_length=8)

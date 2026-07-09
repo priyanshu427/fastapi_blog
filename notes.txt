@@ -111,5 +111,17 @@ Status codes:
 # the intial page load is gonna be server side rendered so that search engines can see content after that js fetches the next batches
 # there are libraries for pagination 
 
-
+# Simple Mail Transfer Protocol(smtp)
+[ User clicks "Reset" ] ➔ Triggers FastAPI Route
+                                 │
+                                 ▼
+[ FastAPI Route ] ───────➔ Calls send_email(to_email="user@example.com", ...)
+                                 │
+                                 ▼
+[ Your App Code ] ───────➔ Logs into Mailtrap (Host, Port, Username, Password)
+                                 │
+                                 ▼
+[ Mailtrap Server ] ─────➔ Catches the email in your private developer dashboard 
+                           (Instead of sending it to the real user's actual inbox)
+# email sending is a time taking task a lot of back and forth with our server and mail server . background task enables that we can send emails faster 
 
