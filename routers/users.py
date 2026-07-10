@@ -205,7 +205,8 @@ async def reset_password(
             detail="Invalid or expired reset token",   # generic message
         )
 
-    if reset_token.expires_at.replace(tzinfo=UTC) < datetime.now(UTC):  # sqllite stores datetimes but doesnt store timezone info it strips that out and cannot compare directly with datetime. replace adds the timezone
+                                                    # if reset_token.expires_at.replace(tzinfo=UTC) < datetime.now(UTC):  # sqllite stores datetimes but doesnt store timezone info it strips that out and cannot compare directly with datetime. replace adds the timezone
+    if reset_token.expires_at < datetime.now(UTC):  # postgres has a dedicated tzinfo for storing timezone info
         await db.delete(reset_token)
         await db.commit()
         raise HTTPException(

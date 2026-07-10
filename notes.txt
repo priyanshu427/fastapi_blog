@@ -124,4 +124,30 @@ Status codes:
 [ Mailtrap Server ] ─────➔ Catches the email in your private developer dashboard 
                            (Instead of sending it to the real user's actual inbox)
 # email sending is a time taking task a lot of back and forth with our server and mail server . background task enables that we can send emails faster 
+https://mailtrap.io/home
+
+# using docker for postgres installtion to keep native os clean
+# we have been using create_all which creates all tables on startup . issue is its not a migration system . if u change model and at startup create_all only creates tables if they dont exist . it wont work if we have change in our model like adding a new field
+# only way we can add/remove and do changes in tables from models. we would delete blog,db and then at startup it recreates which is not possible in prod.
+# migration on the other hand track schema changes,etc . we can also rollback if something goes wrong
+# alembic is a migration tool for sqlachemy. each migration is like a git commit. migration has two things upgrade to apply changes and downgrade to rollback
+# uv run alembic init -t async alembic . -t tells alembic to take async template and last alembic is the dir name where the migration files will live
+# alembic/versions/ this is where historic migration script checkpoints will live. Every time we change our Pydantic or SQLAlchemy models
+# uv run alembic revision --autogenerate -m "intial schema" . 
+# revision: Tells Alembic to generate a brand-new, version-controlled python snapshot checkpoint script inside your alembic/versions/ directory.
+# --autogenerate: This triggers the magic comparison engine. Alembic looks at your live database schema and compares it side-by-side with your Python models.py file. If it notices you have a User model in Python but no users table in the database, it automatically generates the exact SQL layout required to build it.
+# -m "initial schema" a message description to name the script file
+# uv run alembic upgrade head . run all function in the db container and it creates the tables,columns,etc
+# psql is the interactive terminal front-end for PostgreSQL. It allows a developer to log into a database instance, run raw SQL queries, inspect tables, and manage permissions manually.
+# docker exec -it fastapi-postgres psql -U bloguser -d blog  . 
+# \dt
+# \q to exit 
+# \d posts
+# uv run alembic current . for checking current state with alembic. if we see head and revision id we are at latest version
+# alembic downgrade -1 . for rollback and going down one migration
+# uv run alembic history . shows history
+switched from sqllite to postgres. used alembic migration instead of create_all at startup
+
+
+
 

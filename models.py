@@ -58,6 +58,7 @@ class Post(Base):
         DateTime(timezone=True), # It tells SQL to allocate a column type capable of storing date, time, and timezone offset parameters
         default=lambda: datetime.now(UTC), # tells sqlalchemy to not register the date for the post till its published bascially lambda tells to not execute the function till publish is hit. if not the date is just frozen to when the server first started.
     ) 
+    likes: Mapped[int] = mapped_column(Integer, default=0, server_default="0") # the default=0 is for the sqlalchemy object. server_default="0" is for the database. if we dont define a default then alembic tries to make the row null but we also not allowing that and it would fail. by declaring a server default alembic will include in the generated migration. it is good for exisintg rows that now have to be given some value as likes cannot be null
 
     author: Mapped[User] = relationship(back_populates="posts")  # a many(posts) to one(user) relationship that links back. we can use something like post.author
 

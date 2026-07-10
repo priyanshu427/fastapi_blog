@@ -29,8 +29,8 @@ from starlette.exceptions import \
 
 import models  # models give us access to post and user models
 from config import settings
-from database import (  # base and engine for creating tables. get_db the function that provides db
-    Base, engine, get_db)
+from database import (  # base and engine for creating tables. get_db the function that provides db. base not needed now as create_all is gone
+    engine, get_db)
 # Base.metadata.create_all(bind=engine)                  # create all is a sync function and cannot be used with a async engine
 # create db tables by looking at models that inherit from base 
 from routers import posts, users
@@ -38,26 +38,25 @@ from routers import posts, users
 
 @asynccontextmanager                # this blocks tells db tables should be created on startup and cleanup on shutdown of server
 async def lifespan(_app: FastAPI):  # _app: FastAPI argument passes the actual app instance into the function.
-    # Startup
-    async with engine.begin() as conn:   # opens a secure asynchronous connection (conn) to SQLite
-        await conn.run_sync(Base.metadata.create_all)  # create_all is a sQLAlchemy’s internal table-creation tool which is sync so we use conn.runsync to prevent blocking our main event loop. await ensures that main event loop pauses until all tables are built
-    yield     # here after table creation yield freezes the function in background till the website is active
+                                    # Startup
+                                    # async with engine.begin() as conn:   # opens a secure asynchronous connection (conn) to SQLite
+                                    # await conn.run_sync(Base.metadata.create_all)  # create_all is a sQLAlchemy’s internal table-creation tool which is sync so we use conn.runsync to prevent blocking our main event loop. await ensures that main event loop pauses until all tables are built. create_all bad for prod
+    yield                     # here after table creation yield freezes the function in background till the website is active
     # Shutdown                # when uvicorn server is terminated code below yield is executed           
     await engine.dispose()    # this drops all connections,clears ram and closes blog.db cleanly
 
 app= FastAPI(lifespan=lifespan)  # lifespan is passed here which is the manager for opening and closing the async connection. fastapi can now perform according to it around the db engine
 # instance of the class(blueprint)for the app that links the code to the web. fastapi is a class here and app is the object created.
 
-app.mount("/static",StaticFiles(directory="static"),name="static")
-# mount method takes three arguments . first the url path of static files, second a static file instance pointing to the folder, third a name to reference in templates.
-# .mount() is a function that belongs to the FastAPI class. Because app is an object of that class, it has access to this method.
-app.mount("/media",StaticFiles(directory="media"),name="media")
+app.mount("/static",StaticFiles(directory="static"),name="static")  # mount method takes three arguments . first the url path of static files, second a static file instance pointing to the folder, third a name to reference in templates.
+
+app.mount("/media",StaticFiles(directory="media"),name="media")     # .mount() is a function that belongs to the FastAPI class. Because app is an object of that class, it has access to this method.
 templates = Jinja2Templates(directory="templates")              # a template object that knows to look in the templates directory for templates. Jinja2Templates is the class that has the html rendering engine.
 
 app.include_router(users.router, prefix="/api/users", tags=["users"])  # app.includerouter connects the router to our app. the prefix parameter adds that preffix to all the routes in the router. tags creates a section labelled users and group all that endpoints in the docs 
 app.include_router(posts.router, prefix="/api/posts", tags=["posts"])  # users.py grabs the specific router = APIRouter() instance defined at the top of that file.
 
-# Route A: fetches all the posts in the db.
+# Route that fetches all the posts in the db.
 @app.get("/", include_in_schema=False,name="home")         # The .get is the HTTP Method (asking the server for data).
 @app.get("/posts", include_in_schema=False,name="posts")   # The "/" is the Path (the home page).
 async def home(request: Request, db: Annotated[AsyncSession, Depends(get_db)]):  # @app is used to define routes. @app tells Python this function belongs to your app.

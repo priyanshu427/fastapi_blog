@@ -9,6 +9,8 @@ class Settings(BaseSettings):    # inheriting from basesettings class gives us t
         env_file_encoding="utf-8",  # tells pydantic use utf-8 dictionary to use for decoding the complex cryptographic secret key containing random symbols
     )
 
+    database_url: str
+
     secret_key: SecretStr   # prevents accidental display of secret key if settings or server logs get accidently printed 
     algorithm: str = "HS256" # specifes what algorithm will be used on the secret_key + input data of user and run it in a hs256 stands for HMAC using SHA-256 and generates a signature string . when server receives jwt this algo validates if its from that user.
     access_token_expire_minutes: int = 30 # gives the login token a expiration time
