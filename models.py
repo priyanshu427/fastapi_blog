@@ -10,6 +10,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 # importing column types and relations
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from config import settings
 # relationship helps in traversing and cross table row queries. mapped_column gives constraints.
 from database import Base
 
@@ -39,8 +40,9 @@ class User(Base):
     @property
     def image_path(self) -> str:  # if the user has a custom picture then use that otherwise use default.
         if self.image_file:
-            return f"/media/profile_pics/{self.image_file}"
-        return "/static/profile_pics/default.jpg"
+            # return f"/media/profile_pics/{self.image_file}"
+            return f"https://{settings.s3_bucket_name}.s3.{settings.s3_region}.amazonaws.com/profile_pics/{self.image_file}" # url to an image on s3
+        return "/static/profile_pics/default.jpg"  # on local storage
     
 
 class Post(Base):

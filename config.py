@@ -15,6 +15,14 @@ class Settings(BaseSettings):    # inheriting from basesettings class gives us t
     algorithm: str = "HS256" # specifes what algorithm will be used on the secret_key + input data of user and run it in a hs256 stands for HMAC using SHA-256 and generates a signature string . when server receives jwt this algo validates if its from that user.
     access_token_expire_minutes: int = 30 # gives the login token a expiration time
 
+    # S3 Configuration
+    s3_bucket_name: str
+    s3_region: str = "ap-south-1"
+    s3_access_key_id: SecretStr | None = None   # keys can be none as if the deployment is on a vps we need the keys but if its in aws enviroment we dont need these credentials works aswell . also its not for local environment testing later
+    s3_secret_access_key: SecretStr | None = None
+    s3_endpoint_url: str | None = None
+
+
     max_upload_size_bytes: int = 5 * 1024 * 1024 # restricts file uploads to 5mb and protects server from large file uploads
 
     posts_per_page: int = 10

@@ -1,9 +1,3 @@
-#  It creates the "app" object that will listen for requests from the internet.
-# request is imported as jinga2 is a requested object.
-# from fastapi.responses import HTMLResponse
-# for returning html instead of json(raw data) for readability. removed it as we using jinga2.
-# HTTPException for proper http responses and status gives status codes that makes it more readable.
-# depends is for dependemcy injection to inject a session in routes
 from contextlib import \
     asynccontextmanager  # handlles the connections and db at startup and shutdown of server by allowing to use a wrapper function in async way
 # from schemas import PostCreate,PostResponse,UserCreate,UserResponse,PostUpdate,UserUpdate     # imported from schemas.py . dont need these as we relocated the routes using api router and all schemas are being used in individual routers.
@@ -22,7 +16,6 @@ from sqlalchemy import func, select  # select for querying
 from sqlalchemy.ext.asyncio import \
     AsyncSession  # session for type hints for ide
 from sqlalchemy.orm import selectinload
-# from fastapi.responses import JSONResponse         # not needed as for async we will be  # JSONResponse is used explicitly when you want to send custom metadata or change the HTTP rules of the reply.o return a message and modify the status code manually, or send back custom headers.
 from starlette.exceptions import \
     HTTPException as \
     StarletteHTTPException  # Starlette's HTTPException only accepts a status_code and a basic string detail.astAPI's HTTPException allows you to pass custom headers directly inside the exception (which is essential for handling things like security, login tokens, and authentication routing).
@@ -31,10 +24,9 @@ import models  # models give us access to post and user models
 from config import settings
 from database import (  # base and engine for creating tables. get_db the function that provides db. base not needed now as create_all is gone
     engine, get_db)
-# Base.metadata.create_all(bind=engine)                  # create all is a sync function and cannot be used with a async engine
-# create db tables by looking at models that inherit from base 
 from routers import posts, users
 
+# Base.metadata.create_all(bind=engine)                  # create all is a sync function and cannot be used with a async engine
 
 @asynccontextmanager                # this blocks tells db tables should be created on startup and cleanup on shutdown of server
 async def lifespan(_app: FastAPI):  # _app: FastAPI argument passes the actual app instance into the function.
@@ -50,7 +42,7 @@ app= FastAPI(lifespan=lifespan)  # lifespan is passed here which is the manager 
 
 app.mount("/static",StaticFiles(directory="static"),name="static")  # mount method takes three arguments . first the url path of static files, second a static file instance pointing to the folder, third a name to reference in templates.
 
-app.mount("/media",StaticFiles(directory="media"),name="media")     # .mount() is a function that belongs to the FastAPI class. Because app is an object of that class, it has access to this method.
+# app.mount("/media",StaticFiles(directory="media"),name="media")     # .mount() is a function that belongs to the FastAPI class. Because app is an object of that class, it has access to this method. we dont need media as we are using s3 to store
 templates = Jinja2Templates(directory="templates")              # a template object that knows to look in the templates directory for templates. Jinja2Templates is the class that has the html rendering engine.
 
 app.include_router(users.router, prefix="/api/users", tags=["users"])  # app.includerouter connects the router to our app. the prefix parameter adds that preffix to all the routes in the router. tags creates a section labelled users and group all that endpoints in the docs 
@@ -88,7 +80,7 @@ async def home(request: Request, db: Annotated[AsyncSession, Depends(get_db)]): 
     # Request is a class. FastAPI automatically builds a physical request object packed with data (like their IP address and browser type) and hands it directly to home() function.
 
 
-# Route B: Individual Blog Post Detail reader page
+# Route for Individual Blog Post Detail reader page
 @app.get("/posts/{post_id}", include_in_schema=False)
 async def post_page(request: Request, post_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
     # for post in posts:
@@ -155,7 +147,7 @@ async def user_posts_page(
         },
     )
 
-# login and register template_routes.
+# login and register template routes.
 @app.get("/login", include_in_schema=False) # the server asks to view the login page in this request
 async def login_page(request: Request):
     return templates.TemplateResponse(

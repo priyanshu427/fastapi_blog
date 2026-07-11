@@ -2,6 +2,7 @@
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
+from botocore.exceptions import ClientError
 from fastapi import (APIRouter, BackgroundTasks, Depends, HTTPException, Query,
                      UploadFile, status)
 from fastapi.security import OAuth2PasswordRequestForm
@@ -18,7 +19,8 @@ from auth import (CurrentUser, create_access_token, generate_reset_token,
 from config import settings
 from database import get_db
 from email_utils import send_password_reset_email
-from image_utils import delete_profile_image, process_profile_image
+from image_utils import (delete_profile_image, process_profile_image,
+                         upload_profile_image)
 from schemas import (ChangePasswordRequest, ForgotPasswordRequest,
                      PaginatedPostsResponse, PostResponse,
                      ResetPasswordRequest, Token, UserCreate, UserPrivate,
@@ -397,7 +399,7 @@ async def delete_user(user_id: int, current_user:CurrentUser, db: Annotated[Asyn
     await db.commit()
 
     if old_filename :      # deleting the profile image after commit incase commit fails
-     delete_profile_image(old_filename) 
+     await delete_profile_image(old_filename)  # function delete is async
 
 # route for updating a profile image file
 @router.patch("/{user_id}/picture", response_model=UserPrivate)
@@ -422,12 +424,21 @@ async def upload_profile_picture(
         )
 
     try:  # image processing is a cpubound work so we keep our function process_profile_image in the run_in_threadpool function which offloads it in a thread pool while keeping our endpoint async otherwise it would have blocked the main event loop
-        new_filename = await run_in_threadpool(process_profile_image, content) # await pauses the req of the current user till the image is processed in a differnt background thread . process_profile_image also saves the file in our hardrive
+        processed_bytes ,new_filename = await run_in_threadpool(process_profile_image, content) # await pauses the req of the current user till the image is processed in a differnt background thread . process_profile_image also saves the file in our hardrive
     except UnidentifiedImageError as err:   # if file is not an image its caught here
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid image file. Please upload a valid image (JPEG, PNG, GIF, WebP).",
         ) from err
+    
+    # Upload to S3 (also runs in threadpool via async wrapper)
+    try:
+        await upload_profile_image(processed_bytes, new_filename) # if anything goes wrong for boto3 during upload
+    except ClientError as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload image. Please try again.",
+    ) from err
 
     old_filename = current_user.image_file  # default filename of the user in db
 
@@ -436,7 +447,7 @@ async def upload_profile_picture(
     await db.refresh(current_user) # we save the new file first so that incase we failed db commit then atleast we still have users old profile pic
 
     if old_filename: # after successful commit then we delete the old profile image file
-        delete_profile_image(old_filename)
+        await delete_profile_image(old_filename)
 
     return current_user
 
@@ -465,6 +476,6 @@ async def delete_user_picture(
     await db.commit()
     await db.refresh(current_user)
 
-    delete_profile_image(old_filename)  # once the filename is gone then we delete the actual file
+    await delete_profile_image(old_filename)  # once the filename is gone then we delete the actual file
 
     return current_user
