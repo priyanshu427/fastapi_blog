@@ -24,3 +24,5 @@ populate_images/
 *.njsproj
 *.sln
 *.swp
+
+tests/test_image.jpg

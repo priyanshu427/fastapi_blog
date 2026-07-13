@@ -157,6 +157,9 @@ https://mailtrap.io/home
 # uv run alembic history . shows history
 # docker stop fastapi-postgres . for closing the docker container
 # docker start fastapi-postgres . for running the docker container
+# docker ps
+# docker exec -it fastapi-postgres createdb -U postgres test_blog  . here -u is the root user for admin permissions
+# docker exec -it fastapi-postgres psql -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE test_blog TO bloguser;"
 
 # Boto3 as a bridge between local Python code and AWS's cloud data centers. instead of writing raw http requests to send files to amazon . Boto3 provides clean, native Python functions
 [User Uploads Image] for imageutils.py
@@ -182,5 +185,15 @@ https://mailtrap.io/home
          │
          ▼
    [AWS S3 Bucket]
+# boto3 is the amazon sdk maintained by them
 
-
+# test_ is a naming convention that pytest uses to detect test files automatically
+# uv run pytest tests/test_demo.py -v . -v is verbose pytest default gives a small green dot on success but with verbose we get a readable passed or failed
+# unit testing is important to catch bugs in dev before shipping to prod
+# conftest is a special file that pytest detects . we dont need to import anything from that directory . 
+# these tests should not touch dev or prod databases as they will perform operations on it 
+# a fixture  is a helper function that sets up a clean environment or prepares a tool before a test runs, and then cleans up after it finishes.
+# if we performed a test on db for a row and its modified . if the next function needs it, it will just fail. 
+# Transaction Rollback Pattern: a test func begins a db connection is opened a sql command is executed. any modifications it does postgres writes it in a temporary log memory instead of harddrive . test assertion a 200 . The moment the test function finishes, the fixture executes: ROLLBACK. all the changes to db are gone. its fast as well cause it was performed from RAM
+# ASGI = aysnchronous server gateway interface a standard for how aync web servers like uvicorn talk to async python web apps like fastapi 
+# uv run pytest tests/ -s.  for getting print outputs
