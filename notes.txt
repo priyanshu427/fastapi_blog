@@ -197,3 +197,7 @@ https://mailtrap.io/home
 # Transaction Rollback Pattern: a test func begins a db connection is opened a sql command is executed. any modifications it does postgres writes it in a temporary log memory instead of harddrive . test assertion a 200 . The moment the test function finishes, the fixture executes: ROLLBACK. all the changes to db are gone. its fast as well cause it was performed from RAM
 # ASGI = aysnchronous server gateway interface a standard for how aync web servers like uvicorn talk to async python web apps like fastapi 
 # uv run pytest tests/ -s.  for getting print outputs
+
+# sudo usermod -aG sudo Korra. usermod means modifying a user , ag means append to a groung , the group is sudo
+# @ tands for the root domain itself (e.g., myawesomeapp.com). When someone types your website name directly without anything in front of it, the @ record routes them straight to your server's IP address.
+# www is a sub domain. anyone who uses www get routed to same website. duckdns by default registers the domain name in these
