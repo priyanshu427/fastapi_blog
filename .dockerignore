@@ -1,31 +1,9 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
-*.db
 
-# Virtual environments
-.venv
-.env
+.git/
 
-# Ignore user-uploaded profile pictures
-media/
-# Ignore Corey's source seed images folder
-populate_images/
+tests/
 
-# --- IDE & Editor configurations ---
-.vscode/
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.swp
-
-tests/test_image.jpg
+.python-version
 
 # Created by https://www.toptal.com/developers/gitignore/api/python,macos,visualstudiocode,dotenv
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,macos,visualstudiocode,dotenv

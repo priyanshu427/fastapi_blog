@@ -49,7 +49,27 @@ app.include_router(users.router, prefix="/api/users", tags=["users"])  # app.inc
 app.include_router(posts.router, prefix="/api/posts", tags=["posts"])  # users.py grabs the specific router = APIRouter() instance defined at the top of that file.
 
 
-## Health Check Endpoint
+# Security Headers Middleware . prev nginx was adding itself for vps deployment
+@app.middleware("http")  # it intercepts every request and respinse coming in and going out to the browser
+async def add_security_headers(request: Request, call_next):  # when a request arrives at server it goes to the middleware first before a endpoint.
+    response = await call_next(request)  # call_next pauses this middleware block. goes to the endpoint for whatever response it gets then when it gets the response it . the response.headers slap the security headers before sending it out
+
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"  # adding header to the response . # prevents other sites from embedding iframe ,clickjacking attacks. # these response headers catches that generated response before it gets sent out to the internet and manipulate the headers.
+
+    response.headers["X-Content-Type-Options"] = "nosniff"  # tells browser to trust the content type header we sent not guess
+
+    if "Referrer-Policy" not in response.headers:  # this policy strips out the sensitive path parameters and sends user to the destination site
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin" # origin is a combination of three specific parts of a URL protocol,domain,port . if any of these parameters change it becomes cross origin
+
+    if request.url.hostname not in ("localhost", "127.0.0.1"):
+        response.headers["Strict-Transport-Security"] = (  # Strict-Transport-Security tells browser to use https when visiting site but we skip this for local host or 127.0.0.1 for local dev on http
+            "max-age=63072000; includeSubDomains"
+        )
+
+    return response        # returning response with security headers that will include in each response from application
+
+
+# Health Check Endpoint
 @app.get("/health")  # this endpoint is for checking if the db connection is up or not. tools like proxy , monitering and load balancers use this endpoint 
 async def health_check(db: Annotated[AsyncSession, Depends(get_db)]):
     try:

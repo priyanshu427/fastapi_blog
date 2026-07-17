@@ -199,5 +199,10 @@ https://mailtrap.io/home
 # uv run pytest tests/ -s.  for getting print outputs
 
 # sudo usermod -aG sudo Korra. usermod means modifying a user , ag means append to a groung , the group is sudo
-# @ tands for the root domain itself (e.g., myawesomeapp.com). When someone types your website name directly without anything in front of it, the @ record routes them straight to your server's IP address.
+# @ stands for the root domain itself (e.g., myawesomeapp.com). When someone types your website name directly without anything in front of it, the @ record routes them straight to your server's IP address.
 # www is a sub domain. anyone who uses www get routed to same website. duckdns by default registers the domain name in these
+
+# dockerfile is a recipe on how to buid the container image
+# container an instance of that image
+# docker build -t fastapi-app . -t tags image with the name fastapi-app . (.) is the current dir where our docker file lives
+# docker run -p 8080:8080 --env-file .env fastapi-app . runs the image , maps port 8080 on machine to 8080 on the container . --env-file reads environment variables from .env and injects into the container at runtime
